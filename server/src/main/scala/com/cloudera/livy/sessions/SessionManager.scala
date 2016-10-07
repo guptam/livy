@@ -25,6 +25,7 @@ import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import com.cloudera.livy.{LivyConf, Logging}
 import com.cloudera.livy.server.batch.{BatchRecoveryMetadata, BatchSession}
@@ -105,9 +106,15 @@ class SessionManager[S <: Session, R <: RecoveryMetadata : ClassTag](
 
   def delete(session: S): Future[Unit] = {
     session.stop().map { case _ =>
-      sessionStore.remove(sessionType, session.id)
-      synchronized {
-        sessions.remove(session.id)
+      try {
+        sessionStore.remove(sessionType, session.id)
+        synchronized {
+          sessions.remove(session.id)
+        }
+      } catch {
+        case NonFatal(e) =>
+          error("Exception was thrown during stop session:", e)
+          throw e
       }
     }
   }
